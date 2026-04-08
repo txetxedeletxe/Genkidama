@@ -1,0 +1,4 @@
+/env
+*.pyc
+/.kateproject
+__pycache__/
