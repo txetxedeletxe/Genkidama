@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/genkidama"]
+
+[project]
+name = "genkidama"
+version = "0.0.3"
+
+authors = [
+{name="Edu Vallejo Arginzoniz", email="txetxedeletxe@gmail.com" }]
+
+description = "Genkidama is a pure-python library that: 1. Enables developers to write a wide variety of distributed programs (to scale compute, to manage a large fleet of computers, ...) with very few extra lines of code; and 2. Allows mantainers to easily setup highly-heterogeneous computer clusters (comprised of any platform that can run python) in minutes."
+keywords = ["distributed-computing", "hpc", "cluster-management", "rpc"]
+readme = "README.md"
+requires-python = ">=3.13"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/txetxedeletxe/Genkidama"
+Issues = "https://github.com/txetxedeletxe/Genkidama/issues"
+
+[project.scripts]
+genkidama = "genkidama.__main__:run_server"
+

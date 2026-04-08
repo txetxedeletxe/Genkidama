@@ -12,7 +12,8 @@ def _build_parser():
 
     return parser
 
-if __name__ == "__main__":
+
+def run_server():
     logging.basicConfig(level=logging.DEBUG)
 
     parser = _build_parser()
@@ -20,3 +21,7 @@ if __name__ == "__main__":
 
     address: tuple[str,int] | str = args.bind_address if args.bind_port is None else (args.bind_address, args.bind_port)
     start_server(address)
+
+
+if __name__ == "__main__":
+    run_server()

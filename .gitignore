@@ -1,4 +1,5 @@
 /env
+/dist
 *.pyc
 /.kateproject
 __pycache__/
