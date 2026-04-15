@@ -41,8 +41,7 @@ def start_donor_server(address: tuple[str,int] | str, cainfo: tuple[str|None,str
         server = ForkingServer(TCPSocketServer(address))
     else:
         DEFAULTS.load_donor_ssl_context(*cainfo)
-
-    server = SSLForkingServer(TCPSocketServer(address)) # SSL wrapper outside of forking so that it can happen in another process
+        server = SSLForkingServer(TCPSocketServer(address)) # SSL wrapper outside of forking so that it can happen in another process
 
     try:
         tcp_transport = server.accept()
