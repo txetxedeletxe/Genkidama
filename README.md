@@ -1,4 +1,16 @@
-# Genkidama
+<p align="center" style="font-size: 1.5em;"><strong>Share your energy with me!</strong></p>
+<p align="center" style="font-size: 1em;"><strong>オラに元気をわけてくれ!</strong></p>
+
+<!-- Banner image goes here -->
+<p align="center">
+  <img src="genkidama_blue_logo.svg" alt="Docker banner" style="max-width: 100%; width: 400px;" />
+</p>
+
+[![License: GPL v3](https://img.shields.io/github/license/txetxedeletxe/Genkidama?color=blue)](https://github.com/txetxedeletxe/Genkidama/blob/main/LICENSE)
+![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg?logo=python&logoColor=white)
+[![Version](https://img.shields.io/github/v/release/txetxedeletxe/Genkidama?include_prereleases&color=orange)](https://github.com/txetxedeletxe/Genkidama/releases)
+[![Deployments](https://img.shields.io/badge/deployments-view_history-success?logo=github)](https://github.com/txetxedeletxe/Genkidama/deployments)
+## Genkidama
 Genkidama is a pure-python library that: 
  1. Enables **developers** to write a wide variety of distributed programs (to scale compute, to manage a large fleet of computers, to troll your friends, ...) with very few extra lines of code on top of what a locally running script would require.
  2. Allows **system maintainers** to easily setup highly-heterogeneous computer clusters (comprised of any platform that can run python) in minutes.
