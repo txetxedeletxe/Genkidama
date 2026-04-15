@@ -2,11 +2,19 @@ from dataclasses import dataclass, field
 
 import sys
 
+import typing
+
+import logging
+logger = logging.getLogger(__name__)
+
+if typing.TYPE_CHECKING:
+    import ssl
+
 @dataclass(eq=False, repr=False, kw_only=True)
-class Config: # TODO optimize config
+class Config: # TODO optimize config (separate different configs)
 
-
-    SERVER_PORT = 9000
+    SERVER_PORT: int = 9000
+    SSL_CONTEXT: "ssl.SSLContext | None" = None
 
     PAYLOAD_FRAME_LENGTH: int = 4
 
@@ -43,7 +51,25 @@ class Config: # TODO optimize config
     @property
     def MAX_PROCESS_ID(self) -> int: return self.max_id(self.PROCESS_ID_LENGTH)
 
+    # Methods
+    def load_donor_ssl_context(self, cafile: str | None = None, capath: str | None = None):
+
+        import ssl
+
+        self.SSL_CONTEXT = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+        self.SSL_CONTEXT.check_hostname = False
+        self.SSL_CONTEXT.verify_mode = ssl.CERT_REQUIRED
+        self.SSL_CONTEXT.load_verify_locations(cafile, capath)
+
+    def load_kaio_ssl_context(self, certfile: str, keyfile: str | None = None):
+
+        import ssl
+
+        self.SSL_CONTEXT = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
+        self.SSL_CONTEXT.load_cert_chain(certfile, keyfile)
+
 
 DEFAULTS = Config()
 class Configurable:
     CONFIG: Config = DEFAULTS # TODO add constructor for ad-hoc configuration
+

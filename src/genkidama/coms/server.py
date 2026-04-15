@@ -1,35 +1,45 @@
-from genkidama.coms.transport import Transport, SocketTransport, IPTransport, TCPTransport
+import functools
+from genkidama.coms.transport import Transport, SocketTransport, IPTransport, TCPTransport, SSLTransport
 from genkidama.config import Configurable
 
 import socket
 import os
 
 import typing
-from typing import Generic, Self
+from typing import Callable, Generic, Self
 
 import logging
 logger = logging.getLogger(__name__)
 
-TransportT = typing.TypeVar("TransportT", bound=Transport, covariant=True)
+try:
+    import ssl
+except ModuleNotFoundError:
+    logger.warning("ssl module not found, cannot use secure sockets. Install the ssl module to enable authenticated connections.")
 
-class Server(Generic[TransportT]):
-    def accept(self) -> TransportT:
+TransportTOut = typing.TypeVar("TransportTOut", bound=Transport, covariant=True)
+TransportTIn = typing.TypeVar("TransportTIn", bound=Transport, covariant=True)
+
+class Server(Generic[TransportTOut]):
+    def accept(self) -> TransportTOut:
         raise NotImplementedError()
 
-class ServerWrapperMixin(Server[TransportT], Generic[TransportT]):
+class ServerWrapperMixin(Server[TransportTOut], Generic[TransportTIn, TransportTOut]):
 
-    def __init__(self, wrapped: Server[TransportT] | None = None):
-        self._wrapped = self if wrapped is None else typing.cast(Server[TransportT], wrapped)
+    @classmethod
+    def wrap(cls: type[Self], self: Self, wrapped: Server[TransportTIn] | None = None):
+        wrapped_ = self if wrapped is None else wrapped
+        self.accept, accept_return = functools.partial(cls.accept, self), wrapped_.accept
 
-        # Swap the wrapped recv and send for the wrapping ones
-        self.accept, self._accept = self._accept, self._wrapped.accept
+        return wrapped_, accept_return
 
-    def _accept(self): raise NotImplementedError()
 
-class ForkingServer(ServerWrapperMixin[TransportT], Generic[TransportT]):
-    def _accept(self):
+class ForkingServer(ServerWrapperMixin[TransportTOut, TransportTOut], Generic[TransportTOut]):
+    def __init__(self, wrapped: Server[TransportTOut] | None = None):
+        self.__wrapped, self.__accept = ForkingServer.wrap(self, wrapped)
+
+    def accept(self):
         while True: # TODO add a stopping mechanism
-            transport = self._accept()
+            transport = self.__accept()
 
             if os.fork() == 0: # child
                 return transport
@@ -66,5 +76,26 @@ class TCPSocketServer(IPSocketServer[TCPTransport]):
 
     _TRANSPORT_FACTORY = TCPTransport
 
+class SSLSocketServer(SocketServer[SSLTransport], ServerWrapperMixin[SocketTransportT, SSLTransport], Generic[SocketTransportT]):
+    def __init__(self, wrapped: Server[SocketTransportT] | None = None):
+        self.__wrapped, self.__accept = SSLSocketServer[SocketTransportT].wrap(self,wrapped)
+
+    def accept(self) -> SSLTransport:
+        transport = self.__accept()
+        return SSLTransport(transport, authenticator=True)
+
+class SSLForkingServer(SSLSocketServer[SocketTransportT], ServerWrapperMixin[SocketTransportT, SSLTransport], Generic[SocketTransportT]):
+    def __init__(self, wrapped: Server[SocketTransportT] | None = None):
+        self.__wrapped, self.__accept = SSLForkingServer[SocketTransportT].wrap(self,wrapped)
+
+    def accept(self) -> SSLTransport:
+        while True: # TODO add a stopping mechanism
+            transport = self.__accept()
+
+            if os.fork() == 0: # child
+                return SSLTransport(transport, authenticator=True)
+            else:
+                import ssl
+                ssl.RAND_bytes(1024) # Do this to update parent SSL PRNG
 
 

@@ -3,3 +3,4 @@
 *.pyc
 /.kateproject
 __pycache__/
+*.pem

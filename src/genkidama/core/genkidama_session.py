@@ -96,6 +96,30 @@ class LocalGenkidamaSession(GenkidamaSession[LocalProcess], LikeConsumerProducer
         self._poll: select.poll = select.poll()
         self._fd2process: MutableMapping[int, tuple[LocalProcess, int]] = {}
 
+
+    def execute(self, script: str, process_id: int | None = None) -> LocalProcess:
+
+        # TODO Abstract process creation? put popen logic inside LocalProcess
+        logger.debug(f"Executing process with id: {process_id}")
+        popen = subprocess.Popen([*self.CONFIG.EXEC_PROGRAM_ARGS, script],
+                                 stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 close_fds=True)
+        proc = self._create_process(process_id, popen=popen)
+
+        # Register file descriptors
+        stdout_fd, stderr_fd = proc.stdout.fileno(), proc.stderr.fileno()
+
+        self._fd2process[stdout_fd] = (proc, 1) # TODO find a more elegant codification
+        self._fd2process[stderr_fd] = (proc, 2)
+
+        self._poll.register(stdout_fd)
+        self._poll.register(stderr_fd)
+
+        return proc
+
+    # Consumer producer code
     def produce(self) -> Generator[int]:
         polled = self._poll.poll(self.CONFIG.SESSION_POLLING_TIMEOUT) # TODO add a self pipe to interrupt polling
         if polled:
@@ -125,30 +149,6 @@ class LocalGenkidamaSession(GenkidamaSession[LocalProcess], LikeConsumerProducer
 
         else:
             self._poll.register(fd)
-
-
-    def execute(self, script: str, process_id: int | None = None) -> LocalProcess:
-
-
-        # TODO Abstract process creation? put popen logic inside LocalProcess
-        logger.debug(f"Executing process with id: {process_id}")
-        popen = subprocess.Popen([*self.CONFIG.EXEC_PROGRAM_ARGS, script],
-                                 stdin=subprocess.PIPE,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 close_fds=True)
-        proc = self._create_process(process_id, popen=popen)
-
-        # Register file descriptors
-        stdout_fd, stderr_fd = proc.stdout.fileno(), proc.stderr.fileno()
-
-        self._fd2process[stdout_fd] = (proc, 1) # TODO find a more elegant codification
-        self._fd2process[stderr_fd] = (proc, 2)
-
-        self._poll.register(stdout_fd)
-        self._poll.register(stderr_fd)
-
-        return proc
 
 
 

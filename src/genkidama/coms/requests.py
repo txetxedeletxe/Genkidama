@@ -7,6 +7,7 @@ from collections.abc import Set
 
 @unique
 class RequestTypeId(IntEnum):
+    # TODO add ping request
     ExecutionRequest = 1
     ForwardStdinRequest = 2
     ForwardStdoutRequest = 3

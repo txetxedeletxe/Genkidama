@@ -7,8 +7,7 @@ import typing
 T = typing.TypeVar("T")
 
 # Exceptions
-class WorkFinishedException(Exception):
-    pass
+class WorkFinishedException(Exception): pass
 
 # Base classes
 class BaseWorker:
