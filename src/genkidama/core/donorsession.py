@@ -1,7 +1,7 @@
-from genkidama.core.genkidama_session import GenkidamaSession, LocalGenkidamaSession, RemoteGenkidamaSession
+from genkidama.core.genkidamasession import GenkidamaSession, LocalGenkidamaSession, RemoteGenkidamaSession
 from genkidama.coms.requests import *
 from genkidama.coms import Endpoint
-from genkidama.config import Configurable
+from genkidama.config import Config, Configurable
 
 from typing import Generic
 from collections.abc import MutableMapping
@@ -14,10 +14,11 @@ class DonorSession(Endpoint, Configurable, Generic[SessionT]):
 
     _GENKIDAMA_SESSION_FACTORY : type[SessionT]
 
-    def __init__(self, mirror_endpoint: Endpoint):
+    def __init__(self, mirror_endpoint: Endpoint, *, CONFIG: Config | None = None):
+        Configurable.__init__(self, CONFIG=CONFIG)
         Endpoint.__init__(self, mirror_endpoint)
 
-        master_session: SessionT = self._GENKIDAMA_SESSION_FACTORY(self.CONFIG.MASTER_SESSION_ID, self)
+        master_session: SessionT = self._GENKIDAMA_SESSION_FACTORY(self.CONFIG.MASTER_SESSION_ID, self, CONFIG=self.CONFIG)
         self.genkidama_sessions: MutableMapping[int, SessionT] = {master_session.id: master_session}
 
     @property
@@ -42,6 +43,7 @@ class DonorSession(Endpoint, Configurable, Generic[SessionT]):
 
     def forward_request(self, request: Request): # TODO add request filters to avoid bugs
         match request.REQUEST_TYPE_ID:
+
             case RequestTypeId.ExecutionRequest:
                 request = typing.cast(ExecutionRequest, request)
                 self.execute(request.genkidama_session_id, request.process_id, request.script)
@@ -61,6 +63,10 @@ class DonorSession(Endpoint, Configurable, Generic[SessionT]):
             case RequestTypeId.ForwardStderrRequest:
                 request = typing.cast(ForwardStderrRequest, request)
                 self.forward_process_stderr(request.genkidama_session_id, request.process_id, request.content)
+
+    def close(self):
+        raise NotImplementedError()
+
 
 
 class RemoteDonorSession(DonorSession[RemoteGenkidamaSession]):
@@ -94,8 +100,8 @@ class RemoteDonorSession(DonorSession[RemoteGenkidamaSession]):
 class LocalDonorSession(DonorSession[LocalGenkidamaSession]):
     _GENKIDAMA_SESSION_FACTORY = LocalGenkidamaSession
 
-    def __init__(self, mirror_endpoint: Endpoint):
-        DonorSession.__init__(self, mirror_endpoint)
+    def __init__(self, mirror_endpoint: Endpoint, *, CONFIG: Config | None = None):
+        DonorSession.__init__(self, mirror_endpoint, CONFIG=CONFIG)
 
     def start(self):
         for session in self.genkidama_sessions.values():

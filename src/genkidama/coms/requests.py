@@ -7,7 +7,7 @@ from collections.abc import Set
 
 @unique
 class RequestTypeId(IntEnum):
-    # TODO add ping request
+    PingRequest = 0
     ExecutionRequest = 1
     ForwardStdinRequest = 2
     ForwardStdoutRequest = 3
@@ -16,7 +16,7 @@ class RequestTypeId(IntEnum):
 
 
 @dataclass
-class Request(Configurable):
+class Request(Configurable): # TODO change this inheritance
 
     @staticmethod
     def _generate_request_id() -> int:
@@ -39,13 +39,13 @@ class Request(Configurable):
         self._validate()
 
     def _validate(self): # TODO make a custom error for this case
-        if not (0 <= self.request_id < self.CONFIG.MAX_PROCESS_ID):
+        if not (0 <= self.request_id < self.CONFIG.MAX_REQUEST_ID):
             raise ValueError(f"request_id ({self.request_id}) cannot be represented within the length limit ({self.CONFIG.REQUEST_ID_LENGTH} bytes).")
 
 T = TypeVar("T", bound=Request)
 def subscribe_request_type(cls: type[T]) -> type[T]:
 
-        cls.SUB_REQUEST_TYPE_IDS = frozenset() # This is making a copy
+        cls.SUB_REQUEST_TYPE_IDS = frozenset()
 
         if not hasattr(cls, "REQUEST_TYPE_ID"):
             return cls
@@ -56,6 +56,20 @@ def subscribe_request_type(cls: type[T]) -> type[T]:
                 c.SUB_REQUEST_TYPE_IDS = c.SUB_REQUEST_TYPE_IDS | frozenset((cls.REQUEST_TYPE_ID,))
 
         return cls
+
+@subscribe_request_type
+@dataclass
+class RequestResponse(Request):
+    responding_to: int
+
+
+@subscribe_request_type
+@dataclass
+class PingRequest(Request):
+    echoed: bool = False
+
+    REQUEST_TYPE_ID = RequestTypeId.PingRequest
+
 
 @subscribe_request_type
 @dataclass

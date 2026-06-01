@@ -1,29 +1,37 @@
 from dataclasses import dataclass, field
 
+import ssl
 import sys
 
 import typing
+import enum
 
 import logging
 logger = logging.getLogger(__name__)
 
-if typing.TYPE_CHECKING:
-    import ssl
 
 @dataclass(eq=False, repr=False, kw_only=True)
 class Config: # TODO optimize config (separate different configs)
 
+    # Version
+    _GENKIDAMA_VERSION: typing.ClassVar[tuple[int,int]] = 0,1
+    @property
+    def GENKIDAMA_VERSION(self): return self._GENKIDAMA_VERSION
+
+    # Connection
     SERVER_PORT: int = 9000
-    SSL_CONTEXT: "ssl.SSLContext | None" = None
+    SSL_CONTEXT: ssl.SSLContext | None = None
 
-    PAYLOAD_FRAME_LENGTH: int = 4
-
+    # Transport
     SOCKET_BUFFERSIZE: int = 1024
+    PAYLOAD_FRAME_LENGTH: int = 4 # Stream transport framing
 
+    # Workers
     TERMINAL_ENDPOINT_WORKERS: int = 1
     SESSION_POLLING_WORKERS: int = 1
     SESSION_POLLING_TIMEOUT: int = 50 # time in ms
 
+    # Execution # TODO improve this
     EXEC_PROGRAM_ARGS = (sys.executable, "-c")
 
     # PROTOCOL
@@ -54,8 +62,6 @@ class Config: # TODO optimize config (separate different configs)
     # Methods
     def load_donor_ssl_context(self, cafile: str | None = None, capath: str | None = None):
 
-        import ssl
-
         self.SSL_CONTEXT = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
         self.SSL_CONTEXT.check_hostname = False
         self.SSL_CONTEXT.verify_mode = ssl.CERT_REQUIRED
@@ -63,13 +69,14 @@ class Config: # TODO optimize config (separate different configs)
 
     def load_kaio_ssl_context(self, certfile: str, keyfile: str | None = None):
 
-        import ssl
-
         self.SSL_CONTEXT = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
-        self.SSL_CONTEXT.load_cert_chain(certfile, keyfile)
+        self.SSL_CONTEXT.load_cert_chain(certfile,keyfile)
 
 
 DEFAULTS = Config()
 class Configurable:
-    CONFIG: Config = DEFAULTS # TODO add constructor for ad-hoc configuration
+    CONFIG: Config = DEFAULTS
+
+    def __init__(self, *, CONFIG: Config | None = None):
+        self.CONFIG = self.CONFIG if CONFIG is None else CONFIG
 

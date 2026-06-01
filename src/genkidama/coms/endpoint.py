@@ -1,5 +1,6 @@
 from genkidama.coms import Request, Transport, Codec
-from genkidama.config import Configurable
+from genkidama.coms.requests import PingRequest
+from genkidama.config import Config, Configurable
 from genkidama.workers import LikeWorkerPool, Warden, WorkFinishedException
 
 import threading
@@ -21,7 +22,8 @@ class Endpoint:
 
 
 class TerminalEndpoint(Endpoint, LikeWorkerPool, Configurable, Generic[T]):
-    def __init__(self, codec: Codec[T], transport: Transport[T]):
+    def __init__(self, codec: Codec[T], transport: Transport[T], *, CONFIG: Config | None = None):
+        Configurable.__init__(self, CONFIG=CONFIG)
         LikeWorkerPool.__init__(self, worker_count=self.CONFIG.TERMINAL_ENDPOINT_WORKERS)
 
         self.codec: Codec[T] = codec
@@ -35,6 +37,7 @@ class TerminalEndpoint(Endpoint, LikeWorkerPool, Configurable, Generic[T]):
         self.transport.send(encoded_request)
 
         logger.debug(f"Request Sent: {request}")
+
 
     def do_work(self): # Add thread safety where needed
         with self._lock:

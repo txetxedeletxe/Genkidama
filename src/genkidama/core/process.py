@@ -60,7 +60,6 @@ class RemoteProcess(Process):
 
         return typing.cast(int, exitcode)
 
-# LATER
 class LocalProcess(Process):
     def __init__(self,
                  id_: int,

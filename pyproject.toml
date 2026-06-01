@@ -31,5 +31,5 @@ Homepage = "https://github.com/txetxedeletxe/Genkidama"
 Issues = "https://github.com/txetxedeletxe/Genkidama/issues"
 
 [project.scripts]
-genkidama = "genkidama.__main__:run_server"
+genkidama = "genkidama.__main__:main"
 

@@ -1,3 +1,3 @@
-from .donor_session import DonorSession
-from .genkidama_session import GenkidamaSession
+from .donorsession import DonorSession
+from .genkidamasession import GenkidamaSession
 from .process import Process

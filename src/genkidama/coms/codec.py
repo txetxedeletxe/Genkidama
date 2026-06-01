@@ -1,20 +1,21 @@
 from genkidama.coms.requests import *
 from genkidama.config import Configurable
 
-from typing import Generic
+from typing import Generic, Protocol
 import typing
 
 DecodeT = typing.TypeVar("DecodeT")
 
 # TODO document
-class Codec(Configurable, Generic[DecodeT]):
+class Codec(Protocol, Generic[DecodeT]):
     def encode(self, request: Request) -> DecodeT: raise NotImplementedError()
     def decode(self, encoded_request: DecodeT) -> Request: raise NotImplementedError()
 
-class BinaryCodec(Codec[bytes]):
+# TODO is a hierarchical encoder/decoder better? Maybe when the protocol becomes larger.
+class BinaryCodec(Codec[bytes], Configurable):
     def encode(self, request: Request) -> bytes:
 
-        byte_buffer = bytearray()
+        byte_buffer = bytearray() # TODO preallocate
         byte_buffer += request.request_id.to_bytes(self.CONFIG.REQUEST_ID_LENGTH)
 
         request_type = request.REQUEST_TYPE_ID
@@ -89,9 +90,9 @@ class BinaryCodec(Codec[bytes]):
             case RequestTypeId.ForwardStderrRequest:
                 return ForwardStderrRequest(genkidama_session_id, process_id, content, request_id=request_id)
 
+            case _:
+                raise ValueError(f"RequestType {request_type} not known.")
 
-# TODO fix this
-__all__ = ["Codec", "BinaryCodec"]
 
 
 

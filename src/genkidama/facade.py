@@ -1,11 +1,12 @@
-from genkidama.coms import endpoint
-from genkidama.core.genkidama_session import RemoteGenkidamaSession
-from genkidama.core.donor_session import RemoteDonorSession, LocalDonorSession
+from genkidama.config import Config
+from genkidama.configheader import IncompatibleHeaderException
+from genkidama.core.genkidamasession import RemoteGenkidamaSession
+from genkidama.core.donorsession import RemoteDonorSession, LocalDonorSession
 
 from genkidama.coms.endpoint import TerminalEndpoint
 from genkidama.coms.codec import BinaryCodec
 from genkidama.coms.transport import TCPTransport, SSLTransport
-from genkidama.coms.server import TCPSocketServer, ForkingServer, SSLForkingServer
+from genkidama.coms.server import TCPSocketServer, ForkingSocketServer, SSLSocketServer
 
 from genkidama import DEFAULTS
 
@@ -15,42 +16,49 @@ logger = logging.getLogger(__name__)
 
 # TODO add more options
 # TODO add config parameter
-def connect_to_session(address: tuple[str,int] | str, *, authenticate: bool = False) -> RemoteGenkidamaSession:
-    address = typing.cast(tuple[str, int], address) if isinstance(address, tuple) else (address, DEFAULTS.SERVER_PORT)
+def connect_to_session(address: tuple[str,int] | str, *, CONFIG: Config | None = None) -> RemoteGenkidamaSession:
+    DEFAULTS_ = DEFAULTS if CONFIG is None else CONFIG
+    address = typing.cast(tuple[str, int], address) if isinstance(address, tuple) else (address, DEFAULTS_.SERVER_PORT)
 
-    if authenticate:
-        transport = SSLTransport(TCPTransport.connect(address))
-    else:
-        transport = TCPTransport.connect(address)
+    codec = BinaryCodec(CONFIG=CONFIG)
 
-    codec = BinaryCodec()
+    transport = TCPTransport.connect(address, CONFIG=CONFIG)
+    if DEFAULTS_.SSL_CONTEXT is not None:
+        transport = SSLTransport(transport, CONFIG=CONFIG)
+
     logger.info(f"Connected to donor {address}")
 
-    endpoint = TerminalEndpoint(codec, transport)
-    donor_session = endpoint.mirror_endpoint = RemoteDonorSession(endpoint)
+    endpoint = TerminalEndpoint(codec, transport, CONFIG=CONFIG)
+    donor_session = endpoint.mirror_endpoint = RemoteDonorSession(endpoint, CONFIG=CONFIG)
 
     endpoint.start()
 
     return donor_session.master_session
 
-def start_donor_server(address: tuple[str,int] | str, cainfo: tuple[str|None,str|None] | None):
-    address = typing.cast(tuple[str, int], address) if isinstance(address, tuple) else (address, DEFAULTS.SERVER_PORT)
+def start_donor_server(address: tuple[str,int] | str, *, CONFIG: Config | None = None):
+    DEFAULTS_ = DEFAULTS if CONFIG is None else CONFIG
+    address = typing.cast(tuple[str, int], address) if isinstance(address, tuple) else (address, DEFAULTS_.SERVER_PORT)
 
-    if cainfo is None:
-        logger.warning("Running Donor Server without authentication! This should only be done with extereme caution and with the server is listening in a very hermetic network (like localhost).")
-        server = ForkingServer(TCPSocketServer(address))
+    server = ForkingSocketServer(TCPSocketServer(address, CONFIG=CONFIG))
+
+    if DEFAULTS_.SSL_CONTEXT is not None:
+        server = SSLSocketServer(server, CONFIG=CONFIG) # SSL wrapper outside of forking so that it can happen in another process
     else:
-        DEFAULTS.load_donor_ssl_context(*cainfo)
-        server = SSLForkingServer(TCPSocketServer(address)) # SSL wrapper outside of forking so that it can happen in another process
+        logger.warning("Running Donor Server without authentication! This should only be done with extereme caution and with the server is listening in a very hermetic network (like localhost).")
+
+    codec = BinaryCodec(CONFIG=CONFIG)
 
     try:
-        tcp_transport = server.accept()
+        transport = server.accept()
     except OSError as e:
-            logger.critical("Could not stablish a secure connection with an incomming connection. Dropping connection.")
-            exit(-1)
+        logger.error("Could not stablish a secure connection with an incomming connection:\n\n{}\n\nDropping connection.".format(e))
+        exit(-1)
+    except IncompatibleHeaderException as e:
+        logger.error("Exchanged Headers are not compatible:\n\n{}\n\nDropping connection.".format(e))
+        exit(-1)
 
-    endpoint = TerminalEndpoint(BinaryCodec(), tcp_transport)
-    donor_session = endpoint.mirror_endpoint = LocalDonorSession(endpoint)
+    endpoint = TerminalEndpoint(codec, transport)
+    donor_session = endpoint.mirror_endpoint = LocalDonorSession(endpoint, CONFIG=CONFIG)
 
     donor_session.start()
     endpoint.start()

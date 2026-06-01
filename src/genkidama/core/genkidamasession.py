@@ -1,13 +1,14 @@
 # TODO improve docstring using PEP
 from genkidama.core.process import Process, LocalProcess, RemoteProcess
 from genkidama.workers import LikeConsumerProducerPool
-from genkidama.config import Configurable
+from genkidama.config import Config, Configurable
 
 from typing import Generator, Generic
 from collections.abc import MutableMapping
 
 import select
 import subprocess
+import threading
 
 import typing
 
@@ -23,7 +24,8 @@ class GenkidamaSession(Configurable, Generic[ProcessT]):
 
     _PROCESS_FACTORY: type[ProcessT]
 
-    def __init__(self, id_: int, donor_session: "DonorSession"):
+    def __init__(self, id_: int, donor_session: "DonorSession", *, CONFIG: Config | None = None):
+        Configurable.__init__(self, CONFIG=CONFIG)
         self.id: int = id_
         self.donor_session = donor_session
 
@@ -34,6 +36,7 @@ class GenkidamaSession(Configurable, Generic[ProcessT]):
     def execute(self, script: str) -> ProcessT:
         """Execute the python script in a separate process, return Process (a process handle)."""
         raise NotImplementedError()
+
 
     # MOVE this to another API
     def _clean_process(self, process_id: int):
@@ -86,8 +89,8 @@ class LocalGenkidamaSession(GenkidamaSession[LocalProcess], LikeConsumerProducer
 
     _PROCESS_FACTORY = LocalProcess
 
-    def __init__(self, id_: int, donor_session: "DonorSession"):
-        GenkidamaSession.__init__(self, id_, donor_session)
+    def __init__(self, id_: int, donor_session: "DonorSession", *, CONFIG: Config | None = None):
+        GenkidamaSession.__init__(self, id_, donor_session, CONFIG=CONFIG)
         LikeConsumerProducerPool.__init__(self,
                                           producer_count=1, # "produce" is implemented to work with a single thread
                                           consumer_count=self.CONFIG.SESSION_POLLING_WORKERS)

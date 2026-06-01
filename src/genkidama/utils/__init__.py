@@ -1,1 +1,1 @@
-from .io_streams import InMemoryPipe, ForwardingStream
+from .iostreams import InMemoryPipe, ForwardingStream

@@ -1,26 +1,26 @@
-import functools
-from ssl import SSLContext, SSLSocket
-from genkidama.config import Configurable
+from genkidama.config import Config, Configurable
+from genkidama.configheader import ConfigHeader, SocketConfigHeader
+from genkidama.coms.socketcontainer import SocketContainer, IPSocketContainer, TCPSocketContainer, SSLSocketContainer
 
+import ssl
 import socket
 import threading
 
+import types
 import typing
-from typing import Any, Callable, Generic, Self, override
+from typing import Protocol, Any, Callable, Generic, Self, override
 
 import logging
 logger = logging.getLogger(__name__)
 
-try:
-    import ssl
-except ModuleNotFoundError:
-    logger.warning("ssl module not found, cannot use secure sockets. Install the ssl module to enable authenticated/encrypted connections.")
-
 MediaT = typing.TypeVar("MediaT")
-class Transport(Generic[MediaT]):
+class Transport(Protocol, Generic[MediaT]):
     def send(self, payload: MediaT): raise NotImplementedError()
     def recv(self) -> MediaT: raise NotImplementedError()
+
+    def handshake(self): raise NotImplementedError
     # TODO implement close
+
 
 class TransportWrapperMixin(Transport[MediaT], Generic[MediaT]):
 
@@ -28,62 +28,78 @@ class TransportWrapperMixin(Transport[MediaT], Generic[MediaT]):
     def wrap(cls: type[Self], self: Self, wrapped: Transport[MediaT] | None = None):
         wrapped_ = self if wrapped is None else wrapped
 
-        self.send, send_return = functools.partial(cls.send,self), wrapped_.send
-        self.recv, recv_return = functools.partial(cls.recv,self), wrapped_.recv
+        self.send, send_return = types.MethodType(cls.send,self), wrapped_.send
+        self.recv, recv_return = types.MethodType(cls.recv,self), wrapped_.recv
+        self.handshake, handshake_return = types.MethodType(cls.handshake,self), wrapped_.handshake
 
-        return wrapped_, (send_return, recv_return)
+        return wrapped_, (send_return, recv_return, handshake_return)
+
+    def __init__(self, wrapped: Transport[MediaT] | None = None):
+        self.__wrapped, (self.__send, self.__recv, self.__handshake) = TransportWrapperMixin.wrap(self, wrapped)
+
+    def send(self, payload: MediaT): return self.__send(payload)
+    def recv(self) -> MediaT: return self.__recv()
+    def handshake(self): return self.__handshake()
+
 
 class BinaryStreamTransport(TransportWrapperMixin[bytes], Configurable):
-    def __init__(self, wrapped: Transport[bytes] | None = None):
-        self.__wrapped, (self.__send, self.__recv) = BinaryStreamTransport.wrap(self, wrapped)
+    def __init__(self, wrapped: Transport[bytes] | None = None, *, CONFIG: Config | None = None):
+        TransportWrapperMixin.__init__(self)
+        self.__wrapped, (self.__send, self.__recv, _) = BinaryStreamTransport.wrap(self, wrapped)
 
-        self._recv_buffer = bytearray()
-        self._lock = threading.RLock()
+        self.__recv_buffer = bytearray() # TODO Change this for a circular buffer
+        self.__lock = threading.RLock()
 
+        Configurable.__init__(self, CONFIG=CONFIG)
+
+    # TODO find a way to use weak references instead of copying the buffers
     def send(self, payload: bytes):
         payload_length = len(payload)
         framed_payload = payload_length.to_bytes(self.CONFIG.PAYLOAD_FRAME_LENGTH) + payload
 
         self.__send(framed_payload)
 
-
     def recv(self) -> bytes:
-        with self._lock:
-            while len(self._recv_buffer) < self.CONFIG.PAYLOAD_FRAME_LENGTH:
+        with self.__lock:
+            while len(self.__recv_buffer) < self.CONFIG.PAYLOAD_FRAME_LENGTH:
 
                 recv_payload = self.__recv()
                 if not recv_payload: # Connection closed
                     raise ConnectionResetError("Connection closed by peer.")
 
-                self._recv_buffer += recv_payload
+                self.__recv_buffer += recv_payload
 
-            expecting_bytes = int.from_bytes(self._recv_buffer[:self.CONFIG.PAYLOAD_FRAME_LENGTH])
+            expecting_bytes = int.from_bytes(self.__recv_buffer[:self.CONFIG.PAYLOAD_FRAME_LENGTH], byteorder="big")
             expecting_bytes += self.CONFIG.PAYLOAD_FRAME_LENGTH
 
-            while len(self._recv_buffer) < expecting_bytes:
+            while len(self.__recv_buffer) < expecting_bytes:
                 recv_payload = self.__recv()
-                self._recv_buffer += recv_payload
+                self.__recv_buffer += recv_payload
 
-            recved = bytes(self._recv_buffer[self.CONFIG.PAYLOAD_FRAME_LENGTH:expecting_bytes])
-            del self._recv_buffer[:expecting_bytes]
+            recved = bytes(self.__recv_buffer[self.CONFIG.PAYLOAD_FRAME_LENGTH:expecting_bytes])
+            del self.__recv_buffer[:expecting_bytes]
 
             return recved
 
-class SocketTransport(Transport[bytes], Configurable):
+    # def handshake(self):
+    #     return self.__handshake()
 
-    ADRESS_FAMILY: socket.AddressFamily
-    SOCKET_KIND: socket.SocketKind
+# SOcket Transport, maybe put somewhere else
+class SocketTransport(Transport[bytes], SocketContainer, Configurable):
 
     @classmethod
-    def connect(cls: type[Self], address: tuple[str, int] | str) -> Self:
-        sck = socket.socket(cls.ADRESS_FAMILY, cls.SOCKET_KIND)
+    def connect(cls: type[Self], address: tuple[str, int] | str, *, CONFIG: Config | None = None) -> Self:
+        sck = cls._create_socket()
         sck.connect(address)
 
-        return cls(sck)
+        transport = cls(sck, CONFIG=CONFIG)
+        transport.handshake()
 
-    def __init__(self, socket: socket.socket):
-        self.socket = socket
-        # TODO validate socket type
+        return transport
+
+    def __init__(self, socket: socket.socket, *, CONFIG: Config | None = None):
+        Configurable.__init__(self, CONFIG=CONFIG)
+        SocketContainer.__init__(self, socket)
 
     # API
     def send(self, payload: bytes):
@@ -92,31 +108,36 @@ class SocketTransport(Transport[bytes], Configurable):
     def recv(self) -> bytes:
         return self.socket.recv(self.CONFIG.SOCKET_BUFFERSIZE)
 
+    # TODO handle edge cases where handshake is used in the middle of the operation (disallow this)
+    def handshake(self):
+        header = SocketConfigHeader.from_config(self.CONFIG)
 
-class IPTransport(SocketTransport): # IPv4 transport
-    ADRESS_FAMILY = socket.AF_INET
+        self.send(header.encode())
+        other_header = header.decode(self.recv())
 
-class TCPTransport(IPTransport, BinaryStreamTransport):
-    SOCKET_KIND = socket.SOCK_STREAM
+        header.assert_compatible(other_header)
 
-    def __init__(self, socket: socket.socket):
-        IPTransport.__init__(self, socket)
-        BinaryStreamTransport.__init__(self)
+class IPTransport(SocketTransport, IPSocketContainer): pass # IPv4 transport
 
-class SSLTransport(SocketTransport, TransportWrapperMixin[bytes]):
+class TCPTransport(IPTransport, BinaryStreamTransport, TCPSocketContainer):
+    def __init__(self, socket: socket.socket, *, CONFIG: Config | None = None):
+        BinaryStreamTransport.__init__(self, CONFIG=CONFIG)
+        IPTransport.__init__(self, socket, CONFIG=CONFIG)
 
-    def __init__(self, wrapped: SocketTransport | None = None, authenticator: bool = False):
-        if self.CONFIG.SSL_CONTEXT is None: # TODO improve this check
-            raise ValueError("CONFIG.SSL_CONTEXT is None, configure the SSL context before using SSLTransport.")
+class SSLTransport(SocketTransport, TransportWrapperMixin[bytes], SSLSocketContainer):
 
+    def __init__(self, wrapped: SocketTransport | None = None, *, CONFIG: Config | None = None):
+        TransportWrapperMixin.__init__(self)
         self.__wrapped, _ = SSLTransport.wrap(self, wrapped)
         self.__wrapped = typing.cast(SocketTransport, self.__wrapped)
 
-        self.ADRESS_FAMILY = self.__wrapped.ADRESS_FAMILY
-        self.SOCKET_KIND = self.__wrapped.SOCKET_KIND
+        SocketTransport.__init__(self, self.__wrapped.socket, CONFIG=CONFIG)
 
-        SocketTransport.__init__(self, self.__wrapped.socket)
-        self.socket: ssl.SSLSocket = self.CONFIG.SSL_CONTEXT.wrap_socket(self.socket, server_side=not authenticator)
+        # TODO improve this
+        if self.CONFIG.SSL_CONTEXT is None:
+            raise ValueError("SSL Context is not initialized. Cannot create a SSL Socket.")
+        server_side = self.CONFIG.SSL_CONTEXT.verify_mode != ssl.CERT_REQUIRED
+        self.socket = self.CONFIG.SSL_CONTEXT.wrap_socket(self.socket, server_side=server_side)
 
 
 # TODO write other transport methods (e.g. UDPTransport)
