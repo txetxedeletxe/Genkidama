@@ -1,10 +1,10 @@
-from genkidama.model import Validable
+from genkidama.model import Closeable, Validable
 
 import socket
 
 from typing import Self
 
-class SocketContainer(Validable):
+class SocketContainer(Closeable,Validable):
     ADRESS_FAMILY: socket.AddressFamily | None = None
     SOCKET_KIND: socket.SocketKind | None = None
 
@@ -28,6 +28,12 @@ class SocketContainer(Validable):
 
         if self.SOCKET_KIND is not None:
             assert self.SOCKET_KIND == self.socket.type
+
+    def close(self):
+        self.socket.close()
+
+    def __del__(self):
+        self.close()
 
 class StreamSocketContainer(SocketContainer):
     SOCKET_KIND = socket.SOCK_STREAM

@@ -12,5 +12,8 @@ class Serializable(Protocol, Generic[SerializeT]):
 
 class Validable(Protocol):
     def __init__(self): self.validate()
-
     def validate(self): raise NotImplementedError() # TODO add custom errors
+
+# TODO add automatic closing on object deletion
+class Closeable(Protocol):
+    def close(self): raise NotImplementedError()

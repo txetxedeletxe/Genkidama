@@ -1,4 +1,4 @@
-from genkidama.coms import Request, Transport, Codec
+from genkidama.coms import Request, Transport, Codec, transport
 from genkidama.config import Config, Configurable
 from genkidama.workers import LikeWorkerPool, Warden, WorkFinishedException
 
@@ -44,6 +44,7 @@ class TerminalEndpoint(Endpoint, LikeWorkerPool, Configurable, Generic[T]):
             try:
                 encoded_request = self.transport.recv()
             except ConnectionResetError:
+                self.transport.close() # TODO close donor server instead, do it somewhere else
                 raise WorkFinishedException()
 
             request = self.codec.decode(encoded_request)

@@ -1,3 +1,4 @@
+from genkidama.model import Closeable
 from genkidama.coms.transport import Transport
 
 import os
@@ -7,9 +8,8 @@ from typing import TypeVar,Protocol, Callable, Generic, Self
 
 TransportT = TypeVar("TransportT", bound=Transport, covariant=True)
 
-class Server(Protocol, Generic[TransportT]):
+class Server(Closeable, Protocol, Generic[TransportT]):
     def accept(self, *, handshake=True) -> TransportT: raise NotImplementedError()
-
 
 ServerT = TypeVar("ServerT", bound=Server, covariant=True)
 class ServerWrapperMixin(Server[TransportT], Generic[ServerT, TransportT]):
@@ -20,30 +20,34 @@ class ServerWrapperMixin(Server[TransportT], Generic[ServerT, TransportT]):
 
         self.accept, accept_return = types.MethodType(cls.accept, self), wrapped_.accept
 
-        return wrapped_, accept_return
+        self.close, close_return = types.MethodType(cls.close, self), wrapped_.close
 
-    def __init__(self) -> None:
-        self.__wrapped, self.__accept = ServerWrapperMixin.wrap(self)
+        return wrapped_, (accept_return, close_return)
 
-    def accept(self, *, handshake=True) -> TransportT:
-        return self.__accept(handshake=handshake)
+    def __init__(self, wrapped: ServerT | None = None) -> None:
+        self.__wrapped, (self.__accept, self.__close) = ServerWrapperMixin.wrap(self, wrapped)
 
+    def accept(self, *, handshake=True) -> TransportT: return self.__accept(handshake=handshake)
+    def close(self): return self.__close()
 
 
 class ForkingServer(ServerWrapperMixin[Server[TransportT], TransportT], Generic[TransportT]):
     def __init__(self, wrapped: Server[TransportT] | None = None):
-        ServerWrapperMixin.__init__(self)
-        self.__wrapped, self.__accept = ForkingServer[TransportT].wrap(self, wrapped)
+        ServerWrapperMixin.__init__(self, wrapped)
+        self.__wrapped, (self.__accept, self.__close) = ForkingServer[TransportT].wrap(self, wrapped)
 
     def accept(self, *, handshake=True):
         while True: # TODO add a stopping mechanism # TODO Add max connections
             transport = self.__accept(handshake=False)
 
             if os.fork() == 0: # child
+                self.__close()
+
                 if handshake: transport.handshake()
                 return transport
 
-            # TODO close transport in parent
+            else:
+                transport.close()
 
 
 

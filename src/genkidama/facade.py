@@ -3,17 +3,15 @@ from genkidama.configheader import IncompatibleHeaderException
 from genkidama.core.genkidamasession import RemoteGenkidamaSession
 from genkidama.core.donorsession import RemoteDonorSession, LocalDonorSession
 
-from genkidama.coms.endpoint import TerminalEndpoint
-from genkidama.coms.codec import BinaryCodec
-from genkidama.coms.sockets import TCPTransport, SSLTransport, TCPSocketServer, ForkingSocketServer, SSLSocketServer
-
+from genkidama.coms import BinaryCodec, TCPTransport, SSLTransport, TCPSocketServer, ForkingSocketServer, SSLSocketServer, TerminalEndpoint
 
 import typing
 import logging
 logger = logging.getLogger(__name__)
 
+# TODO rethink this
+
 # TODO add more options
-# TODO add config parameter
 def connect_to_session(address: tuple[str,int] | str, *, CONFIG: Config | None = None) -> RemoteGenkidamaSession:
     DEFAULTS_ = DEFAULTS if CONFIG is None else CONFIG
     address = typing.cast(tuple[str, int], address) if isinstance(address, tuple) else (address, DEFAULTS_.SERVER_PORT)
@@ -46,8 +44,12 @@ def start_donor_server(address: tuple[str,int] | str, *, CONFIG: Config | None =
 
     codec = BinaryCodec(CONFIG=CONFIG)
 
+    # TODO Clean this up. Separate server and donor isntaces better.
     try:
         transport = server.accept()
+    except KeyboardInterrupt as e:
+        server.close() # TODO Change this for a with statement
+        raise e
     except OSError as e:
         logger.error("Could not stablish a secure connection with an incomming connection:\n\n{}\n\nDropping connection.".format(e))
         exit(-1)
@@ -60,6 +62,12 @@ def start_donor_server(address: tuple[str,int] | str, *, CONFIG: Config | None =
 
     donor_session.start()
     endpoint.start()
-    endpoint.join()
 
-    logger.info(f"Connection terminated")
+    try:
+        endpoint.join()
+        logger.info(f"Connection terminated")
+    except KeyboardInterrupt:
+        logger.warning(f"KeyboardInterrupt. Shutting down connection.")
+
+    exit(-1)
+

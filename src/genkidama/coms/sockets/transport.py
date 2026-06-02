@@ -1,7 +1,8 @@
 from .container import SocketContainer, IPSocketContainer, TCPSocketContainer, SSLSocketContainer
 
 from genkidama.config import Config, Configurable
-from genkidama.coms.transport import Transport, TransportWrapperMixin, BinaryStreamTransport
+from genkidama.coms.transport import Transport, TransportWrapperMixin
+from genkidama.coms.binary.transport import BinaryStreamTransport
 
 from genkidama.configheader import ConfigHeader, SocketConfigHeader
 
@@ -11,7 +12,7 @@ import ssl
 import typing
 from typing import Self
 
-class SocketTransport(Transport[bytes], SocketContainer, Configurable):
+class SocketTransport(SocketContainer, Transport[bytes], Configurable):
 
     @classmethod
     def connect(cls: type[Self], address: tuple[str, int] | str, *, CONFIG: Config | None = None) -> Self:
@@ -43,9 +44,9 @@ class SocketTransport(Transport[bytes], SocketContainer, Configurable):
 
         header.assert_compatible(other_header)
 
-class IPTransport(SocketTransport, IPSocketContainer): pass # IPv4 transport
+class IPTransport(IPSocketContainer, SocketTransport): pass # IPv4 transport
 
-class TCPTransport(IPTransport, BinaryStreamTransport, TCPSocketContainer):
+class TCPTransport(TCPSocketContainer, IPTransport, BinaryStreamTransport):
     def __init__(self, socket: socket.socket, *, CONFIG: Config | None = None):
         BinaryStreamTransport.__init__(self, CONFIG=CONFIG)
         IPTransport.__init__(self, socket, CONFIG=CONFIG)
@@ -53,7 +54,6 @@ class TCPTransport(IPTransport, BinaryStreamTransport, TCPSocketContainer):
 class SSLTransport(SocketTransport, TransportWrapperMixin[bytes], SSLSocketContainer):
 
     def __init__(self, wrapped: SocketTransport | None = None, *, CONFIG: Config | None = None):
-        #TransportWrapperMixin.__init__(self)
         self.__wrapped, _ = SSLTransport.wrap(self, wrapped)
         self.__wrapped = typing.cast(SocketTransport, self.__wrapped)
 
