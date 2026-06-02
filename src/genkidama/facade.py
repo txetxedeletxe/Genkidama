@@ -1,14 +1,12 @@
-from genkidama.config import Config
+from genkidama.config import Config, DEFAULTS
 from genkidama.configheader import IncompatibleHeaderException
 from genkidama.core.genkidamasession import RemoteGenkidamaSession
 from genkidama.core.donorsession import RemoteDonorSession, LocalDonorSession
 
 from genkidama.coms.endpoint import TerminalEndpoint
 from genkidama.coms.codec import BinaryCodec
-from genkidama.coms.transport import TCPTransport, SSLTransport
-from genkidama.coms.server import TCPSocketServer, ForkingSocketServer, SSLSocketServer
+from genkidama.coms.sockets import TCPTransport, SSLTransport, TCPSocketServer, ForkingSocketServer, SSLSocketServer
 
-from genkidama import DEFAULTS
 
 import typing
 import logging

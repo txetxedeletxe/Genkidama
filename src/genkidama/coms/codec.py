@@ -1,4 +1,4 @@
-from genkidama.coms.requests import *
+from .requests import *
 from genkidama.config import Configurable
 
 from typing import Generic, Protocol

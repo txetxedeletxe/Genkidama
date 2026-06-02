@@ -11,4 +11,6 @@ class Serializable(Protocol, Generic[SerializeT]):
 
 
 class Validable(Protocol):
+    def __init__(self): self.validate()
+
     def validate(self): raise NotImplementedError() # TODO add custom errors

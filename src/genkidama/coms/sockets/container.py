@@ -11,14 +11,14 @@ class SocketContainer(Validable):
     @classmethod
     def _create_socket(cls: type[Self]) -> socket.socket:
         if cls.ADRESS_FAMILY is None or cls.SOCKET_KIND is None:
-            raise ValueError(f"Type {cls} does not fully specify the family/kind of socket to instantiate. Use 'create_socket' with a Final subclass of SocketContainer.")
+            raise ValueError(f"Type {cls} does not fully specify the family/kind of socket to instantiate. Use '_create_socket' with a Final subclass of SocketContainer.")
 
         return socket.socket(cls.ADRESS_FAMILY, cls.SOCKET_KIND)
 
     def __init__(self, socket: socket.socket) -> None:
         self.socket = socket
 
-        self.validate()
+        Validable.__init__(self)
         self.ADRESS_FAMILY, self.SOCKET_KIND = socket.family, socket.type
 
     def validate(self):

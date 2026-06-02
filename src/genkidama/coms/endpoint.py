@@ -1,5 +1,4 @@
 from genkidama.coms import Request, Transport, Codec
-from genkidama.coms.requests import PingRequest
 from genkidama.config import Config, Configurable
 from genkidama.workers import LikeWorkerPool, Warden, WorkFinishedException
 

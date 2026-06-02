@@ -1,25 +1,17 @@
-from genkidama.coms.transport import Transport, SocketTransport, IPTransport, TCPTransport, SSLTransport
-from genkidama.coms.socketcontainer import SocketContainer, IPSocketContainer, TCPSocketContainer, SSLSocketContainer
-from genkidama.config import Config, Configurable
+from genkidama.coms.transport import Transport
 
-import ssl
-import socket
 import os
 
 import types
-import typing
-from typing import Protocol, Callable, Generic, Self
+from typing import TypeVar,Protocol, Callable, Generic, Self
 
-import logging
-logger = logging.getLogger(__name__)
-
-TransportT = typing.TypeVar("TransportT", bound=Transport, covariant=True)
+TransportT = TypeVar("TransportT", bound=Transport, covariant=True)
 
 class Server(Protocol, Generic[TransportT]):
     def accept(self, *, handshake=True) -> TransportT: raise NotImplementedError()
 
 
-ServerT = typing.TypeVar("ServerT", bound=Server, covariant=True)
+ServerT = TypeVar("ServerT", bound=Server, covariant=True)
 class ServerWrapperMixin(Server[TransportT], Generic[ServerT, TransportT]):
 
     @classmethod
@@ -53,72 +45,6 @@ class ForkingServer(ServerWrapperMixin[Server[TransportT], TransportT], Generic[
 
             # TODO close transport in parent
 
-# Socket Servers
-SocketTransportT = typing.TypeVar("SocketTransportT", bound=SocketTransport, covariant=True)
-class SocketServer(Server[SocketTransportT], SocketContainer, Configurable, Generic[SocketTransportT]):
-    _TRANSPORT_FACTORY: type[SocketTransportT] # TODO this is not necessarily a class, it can be a callable that returns the type
-
-    def __init__(self, address: tuple[str, int] | str, *, CONFIG: Config | None = None):
-
-        socket_ = self._create_socket()
-        socket_.bind(address)
-        socket_.listen() # TODO put a listen limit in Config?
-
-        Configurable.__init__(self, CONFIG=CONFIG)
-        SocketContainer.__init__(self, socket_)
-
-    def accept(self, *, handshake=True) -> SocketTransportT:
-        sock, addr = self.socket.accept()
-
-        logger.info(f"Connection established: {addr}")
-
-        transport = self._TRANSPORT_FACTORY(sock, CONFIG=self.CONFIG)
-        if handshake: transport.handshake()
-        return transport
-
-class ForkingSocketServer(SocketServer[SocketTransportT], ForkingServer[SocketTransportT], Generic[SocketTransportT]):
-    def __init__(self, wrapped: SocketServer[SocketTransportT] | None = None):
-        self.__wrapped, self.__accept = ForkingSocketServer[SocketTransportT].wrap(self, wrapped)
-        self.__wrapped = typing.cast(SocketServer[SocketTransportT], self.__wrapped)
-
-        # TODO improve this
-        ForkingServer.__init__(self)
-        SocketContainer.__init__(self, self.__wrapped.socket)
-
-    def accept(self, *, handshake=True) -> SocketTransportT:
-        return self.__accept(handshake=handshake)
-
-
-
-IPTransportT = typing.TypeVar("IPTransportT", bound=IPTransport, covariant=True)
-class IPSocketServer(SocketServer[IPTransportT], IPSocketContainer, Generic[IPTransportT]): pass # IPv4 socket server
-
-class TCPSocketServer(IPSocketServer[TCPTransport], TCPSocketContainer):
-    _TRANSPORT_FACTORY = TCPTransport
-
-class SSLSocketServer(SocketServer[SSLTransport], ServerWrapperMixin[SocketServer[SocketTransportT], SSLTransport], SSLSocketContainer, Generic[SocketTransportT]):
-
-    @staticmethod
-    def _update_PRNG():
-        try:
-            ssl.RAND_bytes(32)
-        except:
-            logger.error("Could not update PRNG state of the SSL server! This could result in a security issue!")
-
-    def __init__(self, wrapped: SocketServer[SocketTransportT] | None = None, *, CONFIG: Config | None = None):
-        self.__wrapped, self.__accept = SSLSocketServer[SocketTransportT].wrap(self,wrapped)
-
-        # Initialize socket # TODO improve this
-        SSLSocketContainer.__init__(self, self.__wrapped.socket)
-        Configurable.__init__(self, CONFIG=CONFIG)
-
-        # Do this to ensure SSL PRNG is updated when forking # TODO put this somewhere else
-        os.register_at_fork(after_in_parent=self._update_PRNG)
-
-
-    def accept(self, *, handshake=True) -> SSLTransport:
-        transport = self.__accept(handshake=handshake) # Handshake happens before!
-        return SSLTransport(transport, CONFIG=self.CONFIG)
 
 
 
