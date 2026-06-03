@@ -7,7 +7,7 @@
 </p>
 
 [![License: GPL v3](https://img.shields.io/github/license/txetxedeletxe/Genkidama?color=blue)](https://github.com/txetxedeletxe/Genkidama/blob/main/LICENSE)
-![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg?logo=python&logoColor=white)
+![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg?logo=python&logoColor=white)
 [![Version](https://img.shields.io/github/v/release/txetxedeletxe/Genkidama?include_prereleases&color=orange)](https://github.com/txetxedeletxe/Genkidama/releases)
 [![Deployments](https://img.shields.io/badge/deployments-view_history-success?logo=github)](https://github.com/txetxedeletxe/Genkidama/deployments)
 ## Genkidama
