@@ -1,0 +1,27 @@
+[Unit]
+Description=Genkidama Donor Service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=$GENKIDAMA_USER
+Group=$GENKIDAMA_USER
+
+ExecStart=$PYTHON_EXECUTABLE -m genkidama --conf_file $CONFIG_FILE
+
+# Do not buffer stdout/stderr outputs (logs).
+Environment="PYTHONUNBUFFERED=1"
+
+Restart=always
+RestartSec=10
+
+StateDirectory=genkidama
+StateDirectoryMode=0640
+
+ProtectSystem=strict
+ProtectHome=yes
+
+
+[Install]
+WantedBy=multi-user.target
