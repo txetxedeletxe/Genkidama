@@ -8,7 +8,7 @@ Type=simple
 User=$GENKIDAMA_USER
 Group=$GENKIDAMA_USER
 
-ExecStart=$PYTHON_EXECUTABLE -m genkidama --conf_file $CONFIG_FILE
+ExecStart=$PYTHON_EXECUTABLE -m genkidama --conf_file $CONFIG_FILE --cert $CERT_FILE
 
 # Do not buffer stdout/stderr outputs (logs).
 Environment="PYTHONUNBUFFERED=1"

@@ -3,4 +3,4 @@
 [[server]]
 # port = 9000
 bind_address = "0.0.0.0"
-cert = "$CERTS_PATH"
+cert_file = "$CERT_FILE"

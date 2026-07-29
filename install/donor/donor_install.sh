@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e # Exit immediately if a command fails
 
-if [ "$EUID" -ne 0 ]; then
+if [ "$(id -u)" -ne 0 ]; then
     echo "Error: Please run this script as root."
     exit 1
 fi
@@ -17,16 +17,19 @@ SYSTEMD_PATH="/etc/systemd/system"
 INSTALL_PATH="/opt/genkidama"
 CONFIG_PATH="/etc/genkidama"
 
-CERTS_PATH="$CONFIG_PATH/certs"
 ENVIRONMENT_PATH="$INSTALL_PATH/env"
 
 ## Filenames
 CONFIG_FILENAME="donor.conf"
+CERT_FILENAME="allowed_certs.pem"
+
 SERVICE_FILENAME="genkidama-donor.service"
 UNINSTALL_SCRIPT_FILENAME="donor_uninstall.sh"
 
 ## Files
 CONFIG_FILE="$CONFIG_PATH/$CONFIG_FILENAME"
+CERT_FILE="$CONFIG_PATH/$CERT_FILENAME"
+
 SERVICE_FILE="$SYSTEMD_PATH/$SERVICE_FILENAME"
 UNINSTALL_SCRIPT_FILE="$INSTALL_PATH/$UNINSTALL_SCRIPT_FILENAME"
 
@@ -81,15 +84,15 @@ TMP_CONFIG_FILE=$(mktemp)
 TMP_SERVICE_FILE=$(mktemp)
 TMP_UNINSTALL_SCRIPT_FILE=$(mktemp)
 
-export GENKIDAMA_USER INSTALL_PATH CONFIG_PATH CERTS_PATH ENVIRONMENT_PATH CONFIG_FILE SERVICE_FILE PYTHON_EXECUTABLE GENKIDAMA_EXECUTABLE
+export GENKIDAMA_USER INSTALL_PATH CONFIG_PATH ENVIRONMENT_PATH CONFIG_FILE CERT_FILE SERVICE_FILE PYTHON_EXECUTABLE GENKIDAMA_EXECUTABLE
 envsubst < "$CONFIG_FILE_TEMPLATE" >  "$TMP_CONFIG_FILE"
 envsubst < "$SERVICE_FILE_TEMPLATE" > "$TMP_SERVICE_FILE"
-EUID="\$EUID" envsubst < "$UNINSTALL_SCRIPT_FILE_TEMPLATE" > "$TMP_UNINSTALL_SCRIPT_FILE"
+envsubst < "$UNINSTALL_SCRIPT_FILE_TEMPLATE" > "$TMP_UNINSTALL_SCRIPT_FILE"
 
 
 # Create Directories
 echo "Creating directories."
-mkdir -p "$SYSTEMD_PATH" "$INSTALL_PATH" "$CONFIG_PATH" "$CERTS_PATH" "$ENVIRONMENT_PATH"
+mkdir -p "$SYSTEMD_PATH" "$INSTALL_PATH" "$CONFIG_PATH" "$ENVIRONMENT_PATH"
 
 # Create Virtualenv and install genkidama
 echo "Installing genkidama in a virtual environment."
@@ -99,6 +102,7 @@ $PYTHON_EXECUTABLE -m pip install genkidama
 # Install Config Files
 echo "Installing configuration files."
 
+## Config file
 cp "$TMP_CONFIG_FILE" "$CONFIG_FILE"
 cp "$TMP_CONFIG_FILE" "$CONFIG_FILE.default" # Make a default copy
 
@@ -107,6 +111,12 @@ chown root:root "$CONFIG_FILE.default"
 chmod 644 "$CONFIG_FILE"
 chmod 644 "$CONFIG_FILE.default"
 
+## Cert file
+touch "$CERT_FILE"
+chown root:root "$CERT_FILE"
+chmod 644 "$CERT_FILE"
+
+## Systemd service file
 cp "$TMP_SERVICE_FILE" "$SERVICE_FILE"
 
 chown root:root "$SERVICE_FILE"

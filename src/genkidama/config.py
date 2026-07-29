@@ -60,12 +60,12 @@ class Config: # TODO optimize config (separate different configs)
     def MAX_PROCESS_ID(self) -> int: return self.max_id(self.PROCESS_ID_LENGTH)
 
     # Methods
-    def load_donor_ssl_context(self, cafile: str | None = None, capath: str | None = None):
+    def load_donor_ssl_context(self, cafile: str):
 
         self.SSL_CONTEXT = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
         self.SSL_CONTEXT.check_hostname = False
         self.SSL_CONTEXT.verify_mode = ssl.CERT_REQUIRED
-        self.SSL_CONTEXT.load_verify_locations(cafile, capath)
+        self.SSL_CONTEXT.load_verify_locations(cafile)
 
     def load_kaio_ssl_context(self, certfile: str, keyfile: str | None = None):
 
